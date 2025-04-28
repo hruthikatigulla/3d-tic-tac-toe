@@ -5,12 +5,10 @@ from ai import TicTacToeAI
 app = Flask(__name__)
 app.secret_key = "tic-tac-toe-3d"
 
-# Utility to store/retrieve game state in session
 def get_game():
     if 'game' not in session:
         session['game'] = GameBoard().to_dict()
-    game = GameBoard.from_dict(session['game'])
-    return game
+    return GameBoard.from_dict(session['game'])
 
 def save_game(game):
     session['game'] = game.to_dict()
@@ -20,46 +18,41 @@ def index():
     game = get_game()
     ai = TicTacToeAI()
     message = ""
+    difficulty = session.get("difficulty", "easy")
+
     if request.method == "POST":
+        # Handle difficulty change
+        if "difficulty" in request.form:
+            difficulty = request.form["difficulty"]
+            session["difficulty"] = difficulty
+            # Don't process a move when changing difficulty
+            return redirect(url_for("index"))
+
+        # Handle player move
         x = int(request.form["x"])
         y = int(request.form["y"])
         z = int(request.form["z"])
         if game.is_valid_move(x, y, z):
             game.make_move(x, y, z, 1)
-            if not game.check_win(1) and not game.is_draw():
-                ai_move = ai.find_best_move(game, "easy")
+            save_game(game)
+            if not game.get_winner() and not game.is_full():
+                ai_move = ai.get_best_move(game, difficulty)
                 if ai_move:
                     game.make_move(*ai_move, 2)
-        save_game(game)
-        return redirect(url_for("index"))
+                    save_game(game)
 
-    board = game.get_board()
-    winner = None
-    if game.check_win(1):
-        winner = "You win!"
-    elif game.check_win(2):
-        winner = "AI wins!"
-    elif game.is_draw():
-        winner = "It's a draw!"
-
+    winner = game.get_winner()
     return render_template(
-        "index.html", board=board, winner=winner, game=game
+        "index.html",
+        game=game,
+        winner=winner,
+        difficulty=difficulty
     )
 
 @app.route("/restart")
 def restart():
     session.pop('game', None)
     return redirect(url_for("index"))
-
-# --- Add these methods to your GameBoard class in game_logic.py ---
-# def to_dict(self):
-#     return {"board": self.board, ...}
-# @classmethod
-# def from_dict(cls, d):
-#     inst = cls()
-#     inst.board = d["board"]
-#     ...
-#     return inst
 
 import os
 
